@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:user_list2/UserDetail.dart';
 import 'dart:async';
 import 'Services.dart';
 import 'models/users.dart';
@@ -34,21 +35,40 @@ class MyHomePage extends StatefulWidget {
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
+class Debouncer{
+  final int milliseconds;
+  VoidCallback? action;
+  Timer? _timer;
+
+  Debouncer({required this.milliseconds});
+
+  run(VoidCallback action){
+    if(null != _timer){
+      _timer?.cancel();
+    }
+    _timer = Timer(Duration(milliseconds: milliseconds),action);
+  }
+}
 
 class _MyHomePageState extends State<MyHomePage> {
+  final debouncer = Debouncer(milliseconds:1000);
   late Users users;
   late String title;
+  late bool isLoading = false;
 
   @override
   void initState(){
     super.initState();
+    isLoading = true;
     title = 'Loading user...';
     users = Users();
     
     Services.getUsers().then((userFromServer){
       setState(() {
+      //  users = Users();
        users =  userFromServer;
        title = widget.title;
+       isLoading = false;
       });
     });
   }
@@ -71,23 +91,24 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
-              users.users[index].name,
-              style: const TextStyle(
-                fontSize: 16.0,
-                color: Colors.black,
+            ListTile(
+              leading: const Icon(
+                IconData(0xe61e,fontFamily: 'MaterialIcons'),
+                size: 50,
               ),
-            ),
-            const SizedBox(
-              height: 5.0,
-            ),
-            Text(
-              users.users[index].email.toLowerCase(),
-              style: const TextStyle(
-                fontSize: 14.0,
-                color: Colors.grey,
-              ),
-            )
+              title: Text("Name: ${users!.users[index].name}",
+                  style: const TextStyle(color: Colors.green,fontSize: 16)),
+              subtitle: Text(
+                "Email: ${users!.users[index].email.toLowerCase()}",
+                style: const TextStyle(color: Colors.green,fontSize: 14)),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap:(){
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => UserDetail(
+                    user: users!.users[index],
+                    )));
+              },
+              )
           ],
         ),
       ),
@@ -107,7 +128,19 @@ class _MyHomePageState extends State<MyHomePage> {
         contentPadding: EdgeInsets.all(15.0),
         hintText: 'Fillter by name or email',
       ),
-      onChanged: (string){},
+      onChanged: (string){
+        debouncer.run((){
+          setState(() {
+            title = 'Searching...';
+          });
+          Services.getUsers().then((usersFromServer){
+            setState(() {
+              users = Users.filterList(usersFromServer,string);
+              title = widget.title;
+            });
+          });
+        });
+      },
     );
   }
   @override
@@ -120,9 +153,13 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: Container(
         padding: const EdgeInsets.all(10.0),
-        child: Column(
+        child: isLoading
+        ? const Center(
+          child: CircularProgressIndicator(),
+        )
+        : Column(
           children: <Widget>[
-            searchTF(),
+             searchTF(),
             const SizedBox(
               height: 10.0,
             ),
